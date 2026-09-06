@@ -583,6 +583,21 @@ PAGE = r"""<!doctype html>
       .guest-panel .guest-list { overflow-x:visible; }
       .target-row { min-width:0; }
     }
+    /* Keep the desktop axes identical even when a row has no reboot field.
+       LXC rows intentionally omit that value, so the descriptive fields
+       must occupy the same final tracks as VM rows instead of auto-flowing
+       one column to the left. */
+    @media (min-width:1101px) {
+      .target-row.split-row,.target-row.total-only-row,
+      .target-row.lxc-row.split-row,.target-row.lxc-row.total-only-row {
+        grid-template-columns:minmax(180px,1.5fr) minmax(190px,1.15fr) repeat(2,minmax(72px,.7fr)) minmax(80px,.75fr) minmax(140px,1.2fr) minmax(150px,1fr) minmax(132px,max-content);
+      }
+      .target-row.total-only-row:not(.lxc-row) > :nth-child(3) { grid-column:3 / span 2; }
+      .target-row .row-os { grid-column:6; }
+      .target-row .row-last-check { grid-column:7; }
+      .target-row .row-actions { grid-column:8; }
+      .target-row .target-status .pill { overflow-wrap:normal; }
+    }
     /* Job log actions share one compact button treatment. The download link
        is intentionally secondary, but must align with Show/Hide log. */
     .job > button[data-job], .job .job-download, .job .log-latest { display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:8px 11px; border:1px solid var(--line); border-radius:9px; font:inherit; font-size:.72rem; line-height:1.15; white-space:nowrap }

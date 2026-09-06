@@ -84,8 +84,19 @@ remote_ref_file() {
 }
 
 state_value() {
-  local file="$1" key="$2"
-  awk -F= -v wanted="$key" '$1 == wanted {sub(/^[^=]*=/, ""); print; exit}' "$file"
+  local file="$1" key="$2" fd value
+  # Retention may unlink a file after a caller has enumerated it.  Open the
+  # file once and let awk read the descriptor, so the contents remain
+  # available even if the directory entry disappears meanwhile.
+  [[ -f "$file" && -r "$file" ]] || return 1
+  exec {fd}<"$file" 2>/dev/null || return 1
+  if ! value=$(awk -F= -v wanted="$key" \
+    '$1 == wanted {sub(/^[^=]*=/, ""); print; exit}' <&"$fd"); then
+    exec {fd}<&-
+    return 1
+  fi
+  exec {fd}<&-
+  printf '%s\n' "$value"
 }
 
 write_state() {

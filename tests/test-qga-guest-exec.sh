@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1091,SC2016
+# shellcheck disable=SC1091,SC2016,SC2034,SC2218
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -76,5 +76,44 @@ grep -Fq 'source "$QGA_EXEC_SCRIPT"' "$ROOT_DIR/check-updates.sh"
 grep -Fq 'source "$QGA_EXEC_SCRIPT"' "$ROOT_DIR/update.sh"
 grep -Fq 'apt-get update' "$ROOT_DIR/update.sh"
 grep -Fq 'apt-get' "$ROOT_DIR/update.sh"
+
+# A lost QGA PID after the detached job was started must only cause a retry of
+# the durable status read, never a second guest update start.
+durable_calls="$WORK_DIR/durable-calls"
+durable_call_count=0
+QEMU_GUEST_EXEC() {
+  durable_call_count=$((durable_call_count + 1))
+  printf '%s\n' "$*" >> "$durable_calls"
+  QEMU_EXEC_STDOUT=""
+  QEMU_EXEC_STDERR=""
+  QEMU_EXEC_OUTPUT=""
+  QEMU_EXEC_EXITCODE=0
+  QEMU_EXEC_TRANSPORT_RC=0
+  QEMU_EXEC_ERROR_CLASS=""
+  case "$durable_call_count" in
+    1) return 0 ;; # launch accepted
+    2)
+      QEMU_EXEC_ERROR_CLASS=QGA_INVALID_PID
+      QEMU_EXEC_OUTPUT="Agent error: Invalid parameter 'pid'"
+      QEMU_EXEC_TRANSPORT_RC=1
+      return 0
+      ;;
+    3)
+      QEMU_EXEC_STDOUT=$'guest update complete\n__UU_GUEST_EXIT__0'
+      return 0
+      ;;
+    *) return 0 ;; # cleanup
+  esac
+}
+QEMU_GUEST_EXEC_DURABLE 978 --timeout 5 -- bash -c 'apt-get upgrade -y'
+[[ "$QEMU_EXEC_TRANSPORT_RC" == 0 && "$QEMU_EXEC_EXITCODE" == 0 ]]
+grep -Fq 'guest update complete' <<< "$QEMU_EXEC_STDOUT"
+[[ "$durable_call_count" == 4 ]]
+[[ $(grep -Fc 'systemd-run' "$durable_calls") == 1 ]]
+grep -Fq 'RUN_QEMU_DURABLE "$VM" --timeout 120' "$ROOT_DIR/update.sh"
+grep -Fq 'RUN_QEMU_COMMAND "$VM" --timeout 120 -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get update -y"' "$ROOT_DIR/update.sh"
+grep -Fq 'DEBIAN_FRONTEND=noninteractive apt-get $DPKG_OPTIONS_STRING upgrade -y' "$ROOT_DIR/update.sh"
+
+echo 'QGA durable guest-job recovery test: PASS'
 
 echo 'QGA guest-exec PID/status contract tests: PASS'

@@ -5,7 +5,7 @@
 # Update #
 ##########
 
-VERSION="5.1"
+VERSION="5.1.1"
 
 # A protection failure must make the overall update job fail, even when the
 # configured continue-on-error mode allows other guests to be processed.
@@ -1141,7 +1141,7 @@ UPDATE_CHECK () {
       STATUS_MODEL_PARTIAL=true "$LOCAL_FILES/check-updates.sh" -u ccontainer | tee -a "$LOCAL_FILES/check-output"
       status_target="$CONTAINER"
     elif [[ "$CVM" == true ]]; then
-      ssh -q -p "$SSH_PORT" "$HOSTNAME" "\"$LOCAL_FILES/check-updates.sh\" -u cvm" | tee -a $LOCAL_FILES/check-output
+      ssh -q -p "$SSH_PORT" "$HOSTNAME" "\"$LOCAL_FILES/check-updates.sh\" -u cvm \"$VM\"" | tee -a $LOCAL_FILES/check-output
       status_target="$VM"
     fi
     if [[ -n "$status_target" ]] && declare -f STATUS_MODEL_UPDATE_RESULT >/dev/null 2>&1; then
@@ -1245,6 +1245,16 @@ RUN_QEMU_COMMAND () {
     [[ -n "$QEMU_EXEC_STDOUT" && "${QEMU_EXEC_STDOUT: -1}" != $'\n' ]] && printf '\n'
     printf '%s' "$QEMU_EXEC_STDERR"
   fi
+  return "$QEMU_EXEC_EXITCODE"
+}
+
+RUN_QEMU_DURABLE () {
+  QEMU_GUEST_EXEC_DURABLE "$@"
+  if [[ $QEMU_EXEC_TRANSPORT_RC -ne 0 ]]; then
+    [[ -n "$QEMU_EXEC_OUTPUT" ]] && printf '%s\n' "$QEMU_EXEC_OUTPUT"
+    return "$QEMU_EXEC_TRANSPORT_RC"
+  fi
+  printf '%s' "$QEMU_EXEC_STDOUT"
   return "$QEMU_EXEC_EXITCODE"
 }
 
@@ -1828,20 +1838,20 @@ UPDATE_VM_QEMU () {
         return
       fi
       echo -e "${OR:-}--- APT UPDATE ---${CL:-}"
-      RUN_QEMU_COMMAND "$VM" -- bash -c "apt-get update -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+      RUN_QEMU_COMMAND "$VM" --timeout 120 -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get update -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
       if [[ $ERROR_CODE != "" ]]; then return; fi
       echo -e "\n${OR:-}--- APT UPGRADE ---${CL:-}"
       if [[ "$INCLUDE_PHASED_UPDATES" != "true" ]]; then
-        RUN_QEMU_COMMAND "$VM" --timeout 120 -- bash -c "apt-get $DPKG_OPTIONS_STRING upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+        RUN_QEMU_DURABLE "$VM" --timeout 120 -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get $DPKG_OPTIONS_STRING upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
         if [[ $ERROR_CODE != "" ]]; then return; fi
       else
-        RUN_QEMU_COMMAND "$VM" --timeout 120 -- bash -c "apt-get $DPKG_OPTIONS_STRING -o APT::Get::Always-Include-Phased-Updates=true upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+        RUN_QEMU_DURABLE "$VM" --timeout 120 -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get $DPKG_OPTIONS_STRING -o APT::Get::Always-Include-Phased-Updates=true upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
         if [[ $ERROR_CODE != "" ]]; then return; fi
       fi
       echo -e "\n${OR:-}--- APT CLEANING ---${CL:-}"
-      RUN_QEMU_COMMAND "$VM" -- bash -c "apt-get --purge autoremove -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+      RUN_QEMU_COMMAND "$VM" -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get --purge autoremove -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
       if [[ $ERROR_CODE != "" ]]; then return; fi
-      RUN_QEMU_COMMAND "$VM" -- bash -c "apt-get autoclean -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+      RUN_QEMU_COMMAND "$VM" -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get autoclean -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
       if [[ $ERROR_CODE != "" ]]; then return; fi
       echo
       UPDATE_CHECK

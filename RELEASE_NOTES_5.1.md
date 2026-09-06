@@ -1,6 +1,17 @@
-# Ultimate Updater 5.1
+# Ultimate Updater 5.1.1
 
-Status: Stable release.
+Status: Stable patch release.
+
+## Fixed in 5.1.1
+
+- QEMU Guest Agent updates now survive an agent restart during package
+  upgrades (`264f85b6`, `566f8f68`).
+- Remote cluster VMs receive the required QGA guest-exec helper (`173e15e9`).
+- The post-update welcome/status check preserves the VM ID and rejects an
+  empty one (`bbb3326`).
+- The master installer now defaults to the stable `master` channel when no
+  branch override is supplied (`152131d1`).
+- Guest overview columns remain aligned across row types in the Web UI.
 
 ## Highlights
 

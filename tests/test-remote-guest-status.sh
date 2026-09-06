@@ -10,6 +10,9 @@ WEB="$ROOT_DIR/web-ui/server.py"
 grep -Fq 'remote_check_dir="/tmp/ultimate-updater-check-target-' "$SOURCE"
 grep -Fq 'bash -s -- %q %q' "$SOURCE"
 grep -Fq 'INTERNAL_SSH_FILE=%q INTERNAL_SSH_CONFIG_FILE=%q' "$SOURCE"
+grep -Fq 'QGA_EXEC_SCRIPT=%q' "$SOURCE"
+# shellcheck disable=SC2016 # assertion intentionally matches literal shell syntax.
+grep -Fq '"$qga_helper" "$user@$host:$remote_qga"' "$SOURCE"
 if grep -Fq 'remote_check_script="/etc/ultimate-updater/check-updates.sh"' "$SOURCE"; then
     echo "remote guest checks must not use the installed check-updates.sh" >&2
     exit 1
