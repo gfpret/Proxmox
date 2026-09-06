@@ -1,6 +1,6 @@
 <div align="center">
 
-# Ultimate Updater 5.1.1
+# Ultimate Updater 5.1.2
 
 Central, safety-conscious updates and checks for Proxmox hosts, LXC
 containers, VMs, and selected external systems.
@@ -72,9 +72,9 @@ The authenticated Web UI is served by `ultimate-updater-web.service` on port
 checks, updates, settings, Internal SSH management, persistent jobs/logs, and
 version/build information. See [Web UI](docs/web-ui.md).
 
-![Ultimate Updater 5.1.1 dashboard](docs/images/web-ui/dashboard.png)
+![Ultimate Updater 5.1.2 dashboard](docs/images/web-ui/dashboard.png)
 
-> Current 5.1.1 dashboard from a dedicated test environment. More Web UI views
+> Current 5.1.2 dashboard from a dedicated test environment. More Web UI views
 > are shown in the [Web UI guide](docs/web-ui.md).
 
 ## Supported systems

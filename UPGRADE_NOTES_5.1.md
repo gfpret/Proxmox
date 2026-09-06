@@ -1,10 +1,10 @@
-# Upgrade notes: 5.0 → 5.1.1
+# Upgrade notes: 5.0 → 5.1.2
 
 Use the normal installer/self-update path on the existing central Proxmox
 cluster installation. Ultimate Updater is installed once per cluster; do not
 install a second administrative instance on every node.
 
-To move an existing installation to the published 5.1.1 release, run:
+To move an existing installation to the published 5.1.2 release, run:
 
 ```bash
 update master -up
@@ -20,7 +20,7 @@ The supported branch selectors are `master`, `beta`, and `develop`.
 
 The migration preserves existing `update.conf` values, comments, unknown
 settings, External target registrations, and any configured `WEB_UI_PORT`.
-An existing 5.1 installation can use the same command to move to 5.1.1;
+An existing 5.1 installation can use the same command to move to 5.1.2;
 no separate migration or SSH reconfiguration is required.
 Upgrading from version 5.0 or earlier to 5.1 requires a restart of the Proxmox
 host to fully complete the Ultimate Updater migration. The host itself remains

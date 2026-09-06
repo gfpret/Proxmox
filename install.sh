@@ -32,7 +32,7 @@ ARCHIVE_COMMIT=""
 ARCHIVE_TAG=""
 
 DOWNLOAD_FILE() {
-  local url="$1" destination="$2" kind="${3:-text}" temporary headers http_code retry_after
+  local url="$1" destination="$2" kind="${3:-text}" temporary headers http_code retry_after listing
   mkdir -p "$(dirname "$destination")" || return 1
   temporary=$(mktemp "${destination}.download.XXXXXX") || return 1
   headers=$(mktemp "${destination}.headers.XXXXXX") || { rm -f -- "$temporary"; return 1; }
@@ -59,7 +59,8 @@ DOWNLOAD_FILE() {
       ;;
     archive)
       tar -tzf "$temporary" >/dev/null 2>&1 || { rm -f -- "$temporary" "$headers" "$destination"; echo "Downloaded archive failed validation." >&2; return 1; }
-      tar -tzf "$temporary" | grep -Eq '(^|/)update\.sh$' || { rm -f -- "$temporary" "$headers" "$destination"; echo "Downloaded archive does not contain update.sh." >&2; return 1; }
+      listing=$(tar -tzf "$temporary") || { rm -f -- "$temporary" "$headers" "$destination"; echo "Downloaded archive failed validation." >&2; return 1; }
+      grep -Eq '(^|/)update\.sh$' <<<"$listing" || { rm -f -- "$temporary" "$headers" "$destination"; echo "Downloaded archive does not contain update.sh." >&2; return 1; }
       ;;
   esac
   chmod 0600 "$temporary"
@@ -108,6 +109,21 @@ DOWNLOAD_ARCHIVE() {
       awk -F'"' '/"sha"[[:space:]]*:/ {print $4; exit}' || true)
     [[ "$ARCHIVE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || ARCHIVE_COMMIT=""
   fi
+}
+
+SET_TEMP_FILES() {
+  local archive_root
+  if [[ -f "$TEMP_FOLDER/update.sh" ]]; then
+    TEMP_FILES="$TEMP_FOLDER"
+    return 0
+  fi
+  archive_root=$(find "$TEMP_FOLDER" -mindepth 1 -maxdepth 1 -type d -print -quit)
+  if [[ -n "$archive_root" && -f "$archive_root/update.sh" ]]; then
+    TEMP_FILES="$archive_root"
+    return 0
+  fi
+  echo "Downloaded archive has no usable update.sh root." >&2
+  return 1
 }
 
 WRITE_BUILD_METADATA() {
@@ -401,7 +417,7 @@ INSTALL () {
       DOWNLOAD_ARCHIVE || exit 1
       tar -zxf "$TEMP_FOLDER/ultimate-updater.tar.gz" -C "$TEMP_FOLDER" || exit 1
       rm -f -- "$TEMP_FOLDER/ultimate-updater.tar.gz"
-      TEMP_FILES=$TEMP_FOLDER
+      SET_TEMP_FILES || exit 1
     # Copy files
     cp "$TEMP_FILES"/update.sh $LOCAL_FILES/update.sh
     chmod 750 $LOCAL_FILES/update.sh
@@ -535,11 +551,7 @@ UPDATE () {
     DOWNLOAD_ARCHIVE || return 1
     tar -zxf "$TEMP_FOLDER/ultimate-updater.tar.gz" -C "$TEMP_FOLDER" || return 1
     rm -f -- "$TEMP_FOLDER/ultimate-updater.tar.gz"
-    if [[ "$BRANCH" == master ]]; then
-      TEMP_FILES=$TEMP_FOLDER
-    else
-      TEMP_FILES=$TEMP_FOLDER/$(ls $TEMP_FOLDER)
-    fi
+    SET_TEMP_FILES || return 1
     installed_version=$(awk -F'"' '/^VERSION=/ {print $2; exit}' "$LOCAL_FILES/update.sh" 2>/dev/null || true)
     target_version=$(awk -F'"' '/^VERSION=/ {print $2; exit}' "$TEMP_FILES/update.sh" 2>/dev/null || true)
     installed_major=''
