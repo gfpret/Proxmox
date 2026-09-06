@@ -1,6 +1,17 @@
-# Ultimate Updater 5.1.1
+# Ultimate Updater 5.1.2
 
 Status: Stable patch release.
+
+## Fixed in 5.1.2
+
+- Self-updates now handle release archives with a top-level directory and
+  correctly locate the configuration migration helper.
+- Archive validation no longer emits a misleading tar write error when
+  checking for `update.sh`.
+- Includes the previously approved guest overview column alignment polish.
+
+The 5.1.1 fixes and compatibility notes remain documented below as the
+baseline for this patch release.
 
 ## Fixed in 5.1.1
 
