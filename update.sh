@@ -1838,20 +1838,20 @@ UPDATE_VM_QEMU () {
         return
       fi
       echo -e "${OR:-}--- APT UPDATE ---${CL:-}"
-      RUN_QEMU_COMMAND "$VM" -- bash -c "apt-get update -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+      RUN_QEMU_COMMAND "$VM" --timeout 120 -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get update -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
       if [[ $ERROR_CODE != "" ]]; then return; fi
       echo -e "\n${OR:-}--- APT UPGRADE ---${CL:-}"
       if [[ "$INCLUDE_PHASED_UPDATES" != "true" ]]; then
-        RUN_QEMU_DURABLE "$VM" --timeout 120 -- bash -c "apt-get $DPKG_OPTIONS_STRING upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+        RUN_QEMU_DURABLE "$VM" --timeout 120 -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get $DPKG_OPTIONS_STRING upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
         if [[ $ERROR_CODE != "" ]]; then return; fi
       else
-        RUN_QEMU_DURABLE "$VM" --timeout 120 -- bash -c "apt-get $DPKG_OPTIONS_STRING -o APT::Get::Always-Include-Phased-Updates=true upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+        RUN_QEMU_DURABLE "$VM" --timeout 120 -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get $DPKG_OPTIONS_STRING -o APT::Get::Always-Include-Phased-Updates=true upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
         if [[ $ERROR_CODE != "" ]]; then return; fi
       fi
       echo -e "\n${OR:-}--- APT CLEANING ---${CL:-}"
-      RUN_QEMU_COMMAND "$VM" -- bash -c "apt-get --purge autoremove -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+      RUN_QEMU_COMMAND "$VM" -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get --purge autoremove -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
       if [[ $ERROR_CODE != "" ]]; then return; fi
-      RUN_QEMU_COMMAND "$VM" -- bash -c "apt-get autoclean -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+      RUN_QEMU_COMMAND "$VM" -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get autoclean -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
       if [[ $ERROR_CODE != "" ]]; then return; fi
       echo
       UPDATE_CHECK
