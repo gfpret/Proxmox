@@ -1248,6 +1248,16 @@ RUN_QEMU_COMMAND () {
   return "$QEMU_EXEC_EXITCODE"
 }
 
+RUN_QEMU_DURABLE () {
+  QEMU_GUEST_EXEC_DURABLE "$@"
+  if [[ $QEMU_EXEC_TRANSPORT_RC -ne 0 ]]; then
+    [[ -n "$QEMU_EXEC_OUTPUT" ]] && printf '%s\n' "$QEMU_EXEC_OUTPUT"
+    return "$QEMU_EXEC_TRANSPORT_RC"
+  fi
+  printf '%s' "$QEMU_EXEC_STDOUT"
+  return "$QEMU_EXEC_EXITCODE"
+}
+
 CHECK_QGA_EXEC () {
   QEMU_GUEST_EXEC "$VM" -- true
   if [[ $QEMU_EXEC_TRANSPORT_RC -eq 0 && "$QEMU_EXEC_EXITCODE" -eq 0 ]]; then
@@ -1832,10 +1842,10 @@ UPDATE_VM_QEMU () {
       if [[ $ERROR_CODE != "" ]]; then return; fi
       echo -e "\n${OR:-}--- APT UPGRADE ---${CL:-}"
       if [[ "$INCLUDE_PHASED_UPDATES" != "true" ]]; then
-        RUN_QEMU_COMMAND "$VM" --timeout 120 -- bash -c "apt-get $DPKG_OPTIONS_STRING upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+        RUN_QEMU_DURABLE "$VM" --timeout 120 -- bash -c "apt-get $DPKG_OPTIONS_STRING upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
         if [[ $ERROR_CODE != "" ]]; then return; fi
       else
-        RUN_QEMU_COMMAND "$VM" --timeout 120 -- bash -c "apt-get $DPKG_OPTIONS_STRING -o APT::Get::Always-Include-Phased-Updates=true upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
+        RUN_QEMU_DURABLE "$VM" --timeout 120 -- bash -c "apt-get $DPKG_OPTIONS_STRING -o APT::Get::Always-Include-Phased-Updates=true upgrade -y" || { ERROR_CODE=$?; ID=$VM; ERROR_MSG="$QEMU_EXEC_OUTPUT"; ERROR; }
         if [[ $ERROR_CODE != "" ]]; then return; fi
       fi
       echo -e "\n${OR:-}--- APT CLEANING ---${CL:-}"

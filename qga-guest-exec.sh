@@ -181,3 +181,129 @@ ${QEMU_EXEC_STDERR}"
     sleep 1
   done
 }
+
+# Run a guest command in a transient systemd job whose lifetime is independent
+# of qemu-ga.  This is intended for package-manager operations: qemu-ga may be
+# restarted when qemu-guest-agent itself is upgraded, invalidating the
+# guest-exec PID while the actual guest job is still running.
+QEMU_GUEST_EXEC_DURABLE () {
+  QEMU_EXEC_STDOUT=""
+  QEMU_EXEC_STDERR=""
+  QEMU_EXEC_OUTPUT=""
+  QEMU_EXEC_EXITCODE=""
+  QEMU_EXEC_TRANSPORT_RC=0
+  QEMU_EXEC_ERROR_CLASS=""
+
+  local vmid="${1:-}" raw start_rc timeout=120 deadline token unit script output rc
+  shift || true
+  [[ "$vmid" =~ ^[0-9]+$ ]] || {
+    QEMU_EXEC_ERROR_CLASS=QGA_GUEST_EXEC
+    QEMU_EXEC_OUTPUT="QEMU durable guest-exec requires a numeric VMID"
+    QEMU_EXEC_TRANSPORT_RC=1
+    return 0
+  }
+  local -a command_args=()
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == --timeout && $# -ge 2 ]]; then
+      timeout="$2"
+      shift 2
+      continue
+    elif [[ "$1" == --timeout=* ]]; then
+      timeout="${1#*=}"
+      shift
+      continue
+    fi
+    [[ "$1" == -- ]] || command_args+=("$1")
+    shift
+  done
+  [[ "$timeout" =~ ^[0-9]+$ ]] || timeout=120
+  [[ ${#command_args[@]} -gt 0 ]] || {
+    QEMU_EXEC_ERROR_CLASS=QGA_GUEST_EXEC
+    QEMU_EXEC_OUTPUT="QEMU durable guest-exec requires a command"
+    QEMU_EXEC_TRANSPORT_RC=1
+    return 0
+  }
+
+  token="ultimate-updater-qga-${vmid}-$$-${RANDOM}"
+  unit="${token}.service"
+  script="/run/${token}.sh"
+  output="/run/${token}.output"
+  rc="/run/${token}.rc"
+  local command_line
+  printf -v command_line '%q ' "${command_args[@]}"
+  local script_body
+  script_body=$(printf '%s\n' \
+    '#!/bin/sh' \
+    'set +e' \
+    "exec >$(printf '%q' "$output") 2>&1" \
+    "$command_line" \
+    'result=$?' \
+    "printf '%s\\n' \"\$result\" >$(printf '%q' "$rc")" \
+    "exit \"\$result\"")
+  local encoded_script
+  encoded_script=$(printf '%s' "$script_body" | base64 -w0) || {
+    QEMU_EXEC_ERROR_CLASS=QGA_GUEST_EXEC
+    QEMU_EXEC_OUTPUT="Could not prepare durable guest-exec script"
+    QEMU_EXEC_TRANSPORT_RC=1
+    return 0
+  }
+
+  QEMU_GUEST_EXEC "$vmid" --timeout 15 -- bash -c \
+    "printf '%s' '$encoded_script' | base64 -d > '$script' && chmod 600 '$script' && systemd-run --unit='$unit' --collect --no-block /bin/sh '$script' >/dev/null"
+  if [[ "$QEMU_EXEC_TRANSPORT_RC" -ne 0 || "$QEMU_EXEC_EXITCODE" -ne 0 ]]; then
+    QEMU_EXEC_ERROR_CLASS=${QEMU_EXEC_ERROR_CLASS:-QGA_GUEST_EXEC}
+    QEMU_EXEC_OUTPUT="Could not start durable guest update job: ${QEMU_EXEC_OUTPUT}"
+    QEMU_EXEC_TRANSPORT_RC=1
+    return 0
+  fi
+
+  deadline=$((SECONDS + timeout))
+  while :; do
+    QEMU_GUEST_EXEC "$vmid" --timeout 15 -- bash -c \
+      "if [ -r '$rc' ]; then cat '$output' 2>/dev/null; printf '\\n__UU_GUEST_EXIT__'; cat '$rc'; else exit 75; fi"
+    if [[ "$QEMU_EXEC_TRANSPORT_RC" -ne 0 ]]; then
+      # A transient QGA restart must not be confused with failure of the
+      # already detached package-manager job.  The next poll is safe because
+      # it only reads the durable status files.
+      if [[ "$QEMU_EXEC_ERROR_CLASS" == QGA_INVALID_PID ||
+        "$QEMU_EXEC_ERROR_CLASS" == QGA_GUEST_EXEC_STATUS ||
+        "$QEMU_EXEC_ERROR_CLASS" == QGA_GUEST_EXEC ]]; then
+        [[ "$deadline" -gt 0 && "$SECONDS" -ge "$deadline" ]] && break
+        sleep 1
+        continue
+      fi
+      break
+    fi
+    if [[ "$QEMU_EXEC_EXITCODE" -eq 75 ]]; then
+      [[ "$deadline" -gt 0 && "$SECONDS" -ge "$deadline" ]] && break
+      sleep 1
+      continue
+    fi
+    if [[ "$QEMU_EXEC_EXITCODE" -eq 0 && "$QEMU_EXEC_STDOUT" == *__UU_GUEST_EXIT__* ]]; then
+      local marker='__UU_GUEST_EXIT__' result_text result_code final_stdout final_output final_exitcode
+      result_text="${QEMU_EXEC_STDOUT%%"$marker"*}"
+      result_code="${QEMU_EXEC_STDOUT##*"$marker"}"
+      result_code="${result_code//$'\n'/}"
+      if [[ "$result_code" =~ ^[0-9]+$ ]]; then
+        final_stdout="$result_text"
+        final_output="$result_text"
+        final_exitcode="$result_code"
+        QEMU_EXEC_TRANSPORT_RC=0
+        QEMU_GUEST_EXEC "$vmid" --timeout 15 -- bash -c "rm -f '$script' '$output' '$rc'" >/dev/null 2>&1 || true
+        QEMU_EXEC_STDOUT="$final_stdout"
+        QEMU_EXEC_STDERR=""
+        QEMU_EXEC_OUTPUT="$final_output"
+        QEMU_EXEC_EXITCODE="$final_exitcode"
+        return 0
+      fi
+    fi
+    QEMU_EXEC_ERROR_CLASS=QGA_GUEST_EXEC_STATUS
+    QEMU_EXEC_OUTPUT="Invalid durable guest-job status"
+    QEMU_EXEC_TRANSPORT_RC=1
+    break
+  done
+  QEMU_EXEC_ERROR_CLASS=QGA_TIMEOUT
+  QEMU_EXEC_OUTPUT="Durable guest update job did not finish within ${timeout}s; it was not terminated"
+  QEMU_EXEC_TRANSPORT_RC=1
+  return 0
+}
