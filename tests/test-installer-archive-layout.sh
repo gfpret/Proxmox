@@ -1,10 +1,11 @@
 #!/bin/bash
+# shellcheck disable=SC2034
 set -euo pipefail
 
 ROOT_DIR=$(dirname -- "${BASH_SOURCE[0]}")/..
 ROOT_DIR=$(cd -- "$ROOT_DIR" && pwd)
 
-grep -Fq 'listing=$(tar -tzf "$temporary")' "$ROOT_DIR/install.sh"
+grep -Fq "listing=\$(tar -tzf \"\$temporary\")" "$ROOT_DIR/install.sh"
 grep -Fq 'SET_TEMP_FILES()' "$ROOT_DIR/install.sh"
 grep -Fq 'SET_TEMP_FILES || return 1' "$ROOT_DIR/install.sh"
 grep -Fq 'SET_TEMP_FILES || exit 1' "$ROOT_DIR/install.sh"
