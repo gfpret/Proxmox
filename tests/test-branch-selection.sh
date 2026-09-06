@@ -23,7 +23,7 @@ grep -Fq "beta) branch_color=\"\$OR\"" "$ROOT_DIR/update.sh"
 grep -Fq "develop) branch_color=\"\$RD\"" "$ROOT_DIR/update.sh"
 grep -Fq "printf 'Update to %b%s%b branch?\\n'" "$ROOT_DIR/update.sh"
 grep -Fq "BRANCH=\"\${UU_TARGET_BRANCH:-" "$ROOT_DIR/install.sh"
-grep -Fq 'BRANCH="${UU_TARGET_BRANCH:-master}"' "$ROOT_DIR/install.sh"
+grep -Fq "BRANCH=\"\${UU_TARGET_BRANCH:-master}\"" "$ROOT_DIR/install.sh"
 if grep -Fq 'beta branch is no longer active' "$ROOT_DIR/update.sh" "$ROOT_DIR/welcome-screen.sh"; then
   exit 1
 fi
